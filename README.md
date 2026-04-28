@@ -6,7 +6,7 @@ Production-grade architecture in ~700 lines of TypeScript. The engine traverses 
 
 The repo is structured as a Turborepo monorepo (`@repo/contracts` for shared types, `@repo/lib` for the engine and evaluators) with full dependency injection, immutable session updates, and 41 passing tests covering the deterministic evaluator, the engine including path replay after answer edits, and every LLM guardrail fallback.
 
-> **Origin.** Built over a weekend in preparation for a clinical-systems interview that asked candidates to design a branching intake engine and discuss how an LLM would integrate. The role was filled before the interview took place. Publishing the artifact because the architecture is reusable: the seams that matter for production deployment are already in place.
+
 
 ---
 
