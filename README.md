@@ -2,11 +2,11 @@
 
 **A versioned, replayable rule-graph engine for clinical triage. Deterministic by default; LLM augmentation behind a typed seam.**
 
-Production-grade architecture in ~700 lines of TypeScript. The engine traverses a versioned graph of rules to drive branching patient flows. Sessions pin to a specific form version at start, so in-progress intake remains reproducible even when the underlying form is edited mid-flight. Condition evaluation sits behind a typed interface, letting an LLM-backed evaluator drop in alongside the deterministic default — same engine, different brain — with healthcare-grade guardrails (schema validation, confidence threshold, deterministic fallback, audit logging) wired in code, not just described in prose.
+Production-grade architecture in ~700 lines of TypeScript. The engine traverses a versioned graph of rules to drive branching patient flows. Sessions pin to a specific form version at start, so in-progress intake remains reproducible even when the underlying form is edited mid-flight. Condition evaluation sits behind a typed interface, letting an LLM-backed evaluator drop in alongside the deterministic default (same engine, different brain) with healthcare-grade guardrails (schema validation, confidence threshold, deterministic fallback, audit logging) wired in code, not just described in prose.
 
 The repo is structured as a Turborepo monorepo (`@repo/contracts` for shared types, `@repo/lib` for the engine and evaluators) with full dependency injection, immutable session updates, and 41 passing tests covering the deterministic evaluator, the engine including path replay after answer edits, and every LLM guardrail fallback.
 
-> **Origin.** Built over a weekend in preparation for a clinical-systems interview that asked candidates to design a branching intake engine and discuss how an LLM would integrate. The role was filled before the interview took place. Publishing the artifact because the architecture is reusable — the seams that matter for production deployment are already in place.
+> **Origin.** Built over a weekend in preparation for a clinical-systems interview that asked candidates to design a branching intake engine and discuss how an LLM would integrate. The role was filled before the interview took place. Publishing the artifact because the architecture is reusable: the seams that matter for production deployment are already in place.
 
 ---
 
@@ -17,7 +17,7 @@ A patient answers a series of questions before seeing a clinician. Each answer m
 - New questions, new branches, new edge cases.
 - Some answers (free text, ambiguous responses) can't be evaluated by static rules and need an LLM.
 - Forms get edited mid-flight; in-progress sessions must remain reproducible.
-- Every routing decision must be auditable — this is healthcare.
+- Every routing decision must be auditable. This is healthcare.
 
 The system must stay **flexible** as content changes and **deterministic** for the cases where determinism is non-negotiable.
 
@@ -26,58 +26,58 @@ The system must stay **flexible** as content changes and **deterministic** for t
 ## High-level design
 
 ```
-                        ┌──────────────────────────────┐
-                        │       IIntakeEngine          │   public contract
-                        └──────────────┬───────────────┘
-                                       │ implemented by
-                                       ▼
-                        ┌──────────────────────────────┐
-                        │       IntakeEngine           │   pure orchestrator
-                        │       (immutable, async)     │
-                        └──────────────┬───────────────┘
-                                       │ depends on
-                                       ▼
-                        ┌──────────────────────────────┐
-                        │    IConditionEvaluator       │   internal seam
-                        └──────────────┬───────────────┘
-                                       │ implemented by
-                ┌──────────────────────┼─────────────────────────┐
-                ▼                      ▼                         ▼
-      ┌──────────────────┐   ┌────────────────────────┐   ┌──────────────┐
-      │   Deterministic  │   │ LLMConditionEvaluator  │   │   Hybrid     │
-      │   (default)      │   │ + guardrails           │   │   (custom)   │
-      └──────────────────┘   └────────────┬───────────┘   └──────────────┘
-                                          │ depends on
-                                          ▼
-                                 ┌──────────────────┐
-                                 │   ILLMClient     │   transport seam
-                                 └──────────────────┘
+                        +------------------------------+
+                        |       IIntakeEngine          |   public contract
+                        +---------------+--------------+
+                                        |  implemented by
+                                        v
+                        +------------------------------+
+                        |       IntakeEngine           |   pure orchestrator
+                        |       (immutable, async)     |
+                        +---------------+--------------+
+                                        |  depends on
+                                        v
+                        +------------------------------+
+                        |    IConditionEvaluator       |   internal seam
+                        +---------------+--------------+
+                                        |  implemented by
+                +-----------------------+-------------------------+
+                v                       v                         v
+      +------------------+   +------------------------+   +--------------+
+      |   Deterministic  |   | LLMConditionEvaluator  |   |   Hybrid     |
+      |   (default)      |   | + guardrails           |   |   (custom)   |
+      +------------------+   +------------+-----------+   +--------------+
+                                          |  depends on
+                                          v
+                                 +------------------+
+                                 |   ILLMClient     |   transport seam
+                                 +------------------+
 ```
 
-Two interfaces. One pure orchestrator. Multiple swappable evaluators. The composition root — `container.ts` — is the only place that calls `new` on anything concrete.
+Two interfaces. One pure orchestrator. Multiple swappable evaluators. The composition root, `container.ts`, is the only place that calls `new` on anything concrete.
 
 ---
 
 ## Repository layout
 
 ```
-patient-intake/
-├── packages/
-│   ├── contracts/          — shared types (IntakeForm, Version, Question,
-│   │                         TraversalRule, Condition, PatientResponse, ...)
-│   ├── lib/                — engine, evaluators, container, fixtures, tests
-│   ├── eslint-config/      — shared lint config
-│   └── typescript-config/  — shared tsconfigs
-└── apps/
-    ├── web/                — placeholder Next.js app (UI not built)
-    └── docs/               — placeholder
+arbor/
++-- packages/
+|   +-- contracts/          shared types (IntakeForm, Version, Question,
+|   |                       TraversalRule, Condition, PatientResponse, ...)
+|   +-- lib/                engine, evaluators, container, fixtures, tests
+|   +-- eslint-config/      shared lint config
+|   \-- typescript-config/  shared tsconfigs
+\-- apps/
+    +-- web/                placeholder Next.js app (UI not built)
+    \-- docs/               placeholder
 ```
 
 The interesting code lives in `packages/contracts/src/types.ts` and `packages/lib/src/`.
 
 ---
 
-## Part 1 — Data model
+## Part 1: Data model
 
 [`packages/contracts/src/types.ts`](packages/contracts/src/types.ts)
 
@@ -95,7 +95,7 @@ type TraversalRule = {
 };
 ```
 
-Branching logic lives in **data**, not in code. Adding a new branch means inserting a row in a table — no engine changes, no deploy. Conditions are atomic boolean tests; rules are bundles of conditions with a destination and a priority.
+Branching logic lives in **data**, not in code. Adding a new branch means inserting a row in a table; no engine changes, no deploy. Conditions are atomic boolean tests; rules are bundles of conditions with a destination and a priority.
 
 ### 2. Versioning + per-session pinning
 
@@ -115,9 +115,9 @@ Why: forms get edited. If a clinician updates the form while a patient is mid-fl
 type ResponseStatus = "answered" | "skipped" | "declined";
 ```
 
-Three states, not two. "Skipped" and "declined" are different things in healthcare — one is "I'd rather not say," one is "the system couldn't ask." Both produce `response: null`, but the audit trail keeps them distinct.
+Three states, not two. "Skipped" and "declined" are different things in healthcare: one is "I'd rather not say," one is "the system couldn't ask." Both produce `response: null`, but the audit trail keeps them distinct.
 
-The deterministic evaluator treats both as **non-evaluable** — strict mode, condition fails. Better a rule under-fires than fires on missing data.
+The deterministic evaluator treats both as **non-evaluable**: strict mode, condition fails. Better a rule under-fires than fires on missing data.
 
 ### 4. `Next` as a discriminated union
 
@@ -134,7 +134,7 @@ export const QUESTION_TYPE = ["Multiple_Choice", "Single_Choice", "Text"] as con
 export type QuestionFormat = typeof QUESTION_TYPE[number];
 ```
 
-Both shapes — the literal string-literal union (for type checks) and the runtime array (for dropdowns, validators, exhaustive iteration). One source of truth.
+Both shapes: the literal string-literal union (for type checks) and the runtime array (for dropdowns, validators, exhaustive iteration). One source of truth.
 
 ### What I'd add with more time
 
@@ -145,51 +145,51 @@ Both shapes — the literal string-literal union (for type checks) and the runti
 
 ---
 
-## Part 2 — Traversal engine
+## Part 2: Traversal engine
 
 [`packages/lib/src/intake-engine.ts`](packages/lib/src/intake-engine.ts) and [`packages/lib/src/deterministic-condition-evaluator.ts`](packages/lib/src/deterministic-condition-evaluator.ts)
 
 The engine is decomposed into four layers, each with one responsibility. Dependencies flow strictly downward.
 
-### Layer 1 — `evaluateCondition`
+### Layer 1: `evaluateCondition`
 
 > "Given one condition and the patient's history, did this single test pass?"
 
 Implemented as `IConditionEvaluator.evaluate`. Atomic boolean test. The only place operators (`equals`, `not_equals`, `includes`, `not_includes`) are interpreted. Adding a new operator is a one-method change.
 
-### Layer 2 — `evaluateRule` (private)
+### Layer 2: `evaluateRule` (private)
 
 > "Did all the conditions on this rule pass? (AND-logic)"
 
-Lives as a `private` method on `IntakeEngine`. Not on any interface — there's only one way to AND a list of booleans, so it doesn't deserve a contract. Calls `this.evaluator.evaluate(...)` for each condition; every condition for a rule is evaluated **in parallel** via `Promise.all`.
+Lives as a `private` method on `IntakeEngine`. Not on any interface: there's only one way to AND a list of booleans, so it doesn't deserve a contract. Calls `this.evaluator.evaluate(...)` for each condition; every condition for a rule is evaluated **in parallel** via `Promise.all`.
 
-### Layer 3 — `resolveNext`
+### Layer 3: `resolveNext`
 
 > "Given the current question and the patient's history, where does the engine route?"
 
-Filters rules by `fromQuestionId`, evaluates each (in parallel), picks the highest-priority survivor. Throws if no rule matches — a misconfigured form is a loud error, not silent termination.
+Filters rules by `fromQuestionId`, evaluates each (in parallel), picks the highest-priority survivor. Throws if no rule matches: a misconfigured form is a loud error, not silent termination.
 
-`resolveNext` deliberately does **not** take a session. It only needs `(fromQuestionId, version, history)`. This makes it pure and **replayable** — the canonical use case is "the patient edited an answer; recompute the downstream path." See [the path-replay tests](packages/lib/src/__tests__/intake-engine.test.ts).
+`resolveNext` deliberately does **not** take a session. It only needs `(fromQuestionId, version, history)`. This makes it pure and **replayable**: the canonical use case is "the patient edited an answer; recompute the downstream path." See [the path-replay tests](packages/lib/src/__tests__/intake-engine.test.ts).
 
-### Layer 4 — `step`
+### Layer 4: `step`
 
 > "Given a session and a new answer, produce the next session."
 
-Validates session state, appends the new response to history, asks `resolveNext` where to go, and returns a new session object. Immutable — the input session is never mutated. Returns the new `PatientResponse` and `PatientIntakeSession` so the caller can persist them atomically.
+Validates session state, appends the new response to history, asks `resolveNext` where to go, and returns a new session object. Immutable: the input session is never mutated. Returns the new `PatientResponse` and `PatientIntakeSession` so the caller can persist them atomically.
 
 ### Why async?
 
-Every layer returns `Promise<...>`. The deterministic evaluator could be synchronous, but the LLM evaluator can't — and the interface has to accommodate both. Native array methods (`every`, `filter`) don't await Promises, so the engine uses the explicit `Promise.all + .every` / `.filter-by-index` pattern. This is documented in the engine source so nobody re-introduces the bug later.
+Every layer returns `Promise<...>`. The deterministic evaluator could be synchronous, but the LLM evaluator can't, and the interface has to accommodate both. Native array methods (`every`, `filter`) don't await Promises, so the engine uses the explicit `Promise.all + .every` / `.filter-by-index` pattern. This is documented in the engine source so nobody re-introduces the bug later.
 
 ---
 
-## Part 3 — LLM integration
+## Part 3: LLM integration
 
 [`packages/lib/src/llm-condition-evaluator.ts`](packages/lib/src/llm-condition-evaluator.ts), [`packages/lib/src/llm-client.ts`](packages/lib/src/llm-client.ts), [`packages/lib/src/audit.ts`](packages/lib/src/audit.ts)
 
 ### The seam
 
-The engine depends on `IConditionEvaluator`. The default implementation is deterministic. The LLM lives behind the **same interface** — `LLMConditionEvaluator implements IConditionEvaluator`. The engine cannot tell which it has.
+The engine depends on `IConditionEvaluator`. The default implementation is deterministic. The LLM lives behind the **same interface**: `LLMConditionEvaluator implements IConditionEvaluator`. The engine cannot tell which it has.
 
 Swapping is a single argument:
 
@@ -223,27 +223,27 @@ The chosen seam is at the `IConditionEvaluator` boundary. One interface, multipl
 
 | # | Guardrail | Where it lives |
 |---|---|---|
-| 1 | **Schema validation of model output** | `validateResponse` — re-checks shape at evaluator boundary even though the client contract requires it. Defense in depth. |
-| 2 | **Confidence threshold + fallback** | `confidenceThreshold` (default 0.7) — below this, defer to deterministic. Healthcare-grade conservatism. |
-| 3 | **Error fallback** | `try/catch` around the client call — any throw becomes a deterministic decision. The session never blocks on the LLM. |
+| 1 | **Schema validation of model output** | `validateResponse` re-checks shape at evaluator boundary even though the client contract requires it. Defense in depth. |
+| 2 | **Confidence threshold + fallback** | `confidenceThreshold` (default 0.7); below this, defer to deterministic. Healthcare-grade conservatism. |
+| 3 | **Error fallback** | `try/catch` around the client call; any throw becomes a deterministic decision. The session never blocks on the LLM. |
 | 4 | **Audit logging** | Every decision (success and fallback) emits an `AuditEvent` to an injected `IAuditSink`. Replayable post-hoc. |
-| 5 | **Audit reliability** | `recordSafe` — sink failures never propagate. Patients are not denied care because logging is degraded. |
+| 5 | **Audit reliability** | `recordSafe`; sink failures never propagate. Patients are not denied care because logging is degraded. |
 | 6 | **Model version pinning** | `modelVersion` is a **required** field on `LLMResponse`. Reproducibility is enforced by the type system. |
-| 7 | **PHI separation in audit** | `AuditEvent` deliberately omits `PatientResponse` data — only rule-side metadata (questionId, operator) and model-side metadata (confidence, modelVersion) are recorded. |
+| 7 | **PHI separation in audit** | `AuditEvent` deliberately omits `PatientResponse` data: only rule-side metadata (questionId, operator) and model-side metadata (confidence, modelVersion) are recorded. |
 
 ### Guardrails the code does not enforce (intentionally)
 
 These are the implementer's responsibility, called out in JSDoc:
 
-- **PHI in transit** — only BAA-covered or self-hosted models. The client's responsibility.
-- **Timeout enforcement** — must be inside `ILLMClient.evaluate`. The contract assumes the client is well-behaved.
-- **Rate limiting / cost control** — operational concern, not architectural.
-- **Prompt injection defense** — patient text must be treated as data, not instructions, by the client implementation.
+- **PHI in transit**: only BAA-covered or self-hosted models. The client's responsibility.
+- **Timeout enforcement**: must be inside `ILLMClient.evaluate`. The contract assumes the client is well-behaved.
+- **Rate limiting / cost control**: operational concern, not architectural.
+- **Prompt injection defense**: patient text must be treated as data, not instructions, by the client implementation.
 
 ### What I'd add with more time
 
 - **Shadow mode**. Run the LLM in parallel with the deterministic engine for a release window, log disagreements, never act on the LLM's verdict. Then promote.
-- **Per-session caching** of LLM decisions. Same condition + same history → same answer. Cuts cost and improves replay determinism.
+- **Per-session caching** of LLM decisions. Same condition + same history yields the same answer. Cuts cost and improves replay determinism.
 - **Confidence-aware return type**. `IConditionEvaluator.evaluate(...)` currently returns `Promise<boolean>`. A richer return (`{ result, confidence }`) would let the engine apply policy at routing time, not just inside the LLM evaluator.
 - **Human-in-the-loop hooks** for high-stakes paths (chest pain, ideation). Engine surfaces a "halt + escalate" `Next` variant.
 
@@ -251,7 +251,7 @@ These are the implementer's responsibility, called out in JSDoc:
 
 ## How to run
 
-This is a pnpm-style monorepo using npm workspaces and Turborepo.
+This is an npm-workspaces monorepo using Turborepo.
 
 ```bash
 # from repo root
@@ -280,7 +280,7 @@ A few decisions that were calls, not absolutes:
 
 - **Strict-mode evaluation of skipped/declined responses.** Both make every condition referencing them fail, including `not_equals`. This is asymmetric, but in healthcare we'd rather a rule under-fire than fire on absence-as-evidence. Documented in the deterministic evaluator.
 - **Throwing on no-rule-matches** instead of returning `null` and treating "no match" as "end." Forces every question to have a default rule. Loud-fail-on-config-error beats silent-end-of-session.
-- **Tie-breaking on rule order** when two rules share priority. Deterministic given a stable input order, but order-dependent. A more defensive choice would tie-break on `id`. Not done because the fixture data already orders rules from highest to lowest priority — any future change would need to revisit.
+- **Tie-breaking on rule order** when two rules share priority. Deterministic given a stable input order, but order-dependent. A more defensive choice would tie-break on `id`. Not done because the fixture data already orders rules from highest to lowest priority; any future change would need to revisit.
 - **Per-call instantiation of the default deterministic evaluator** in `createEngine`. Cheap (the class is stateless), but if profiling ever showed it mattered, switch to a singleton.
 
 ---
@@ -305,7 +305,7 @@ The architecture is sound, but the implementation has gaps a production deployme
 
 ### 1. Engine isn't bit-exactly reproducible
 
-`step` calls `crypto.randomUUID()` for the response ID and `new Date()` for `answeredAt` directly. Two `step` calls with identical inputs produce different outputs. For audit replay — "given this session and these answers, what *would* the engine have decided?" — the engine should be a pure function of its inputs.
+`step` calls `crypto.randomUUID()` for the response ID and `new Date()` for `answeredAt` directly. Two `step` calls with identical inputs produce different outputs. For audit replay ("given this session and these answers, what *would* the engine have decided?"), the engine should be a pure function of its inputs.
 
 **Fix:** inject an `IClock` and an `IIdGenerator` into the engine constructor with sensible defaults. The current logic stays; the call sites swap to `this.clock.now()` and `this.ids.next()`. Tests already mock the evaluator the same way; mocking the clock is the same shape.
 
@@ -317,7 +317,7 @@ The architecture supports it (every `LLMResponse` carries `modelVersion`), but `
 
 ### 3. No runtime kill switch for LLM evaluation
 
-To disable LLM evaluation in an incident, you'd have to redeploy with `createEngine()` instead of `createLLMEngine()`. Production wants a runtime feature flag — turn LLM off for an org, a session type, or globally without a deploy.
+To disable LLM evaluation in an incident, you'd have to redeploy with `createEngine()` instead of `createLLMEngine()`. Production wants a runtime feature flag: turn LLM off for an org, a session type, or globally without a deploy.
 
 **Fix:** add an `enabled` predicate to the LLM evaluator (`(condition, history) => boolean`) that short-circuits to fallback when false. Wire to LaunchDarkly / Unleash / a config service.
 
@@ -335,17 +335,17 @@ The contract says reasoning MUST NOT contain PHI, but we don't validate that. If
 
 ### 6. No structured logger / tracing / metrics
 
-We have audit, but audit ≠ logging ≠ metrics. There's no correlation ID flowing through the engine, no OpenTelemetry hooks, no counters for fallback rates or condition-evaluation latency. A production deployment would want all three; the engine should expose hooks rather than the surrounding system shimming them in.
+We have audit, but audit is not logging is not metrics. There's no correlation ID flowing through the engine, no OpenTelemetry hooks, no counters for fallback rates or condition-evaluation latency. A production deployment would want all three; the engine should expose hooks rather than the surrounding system shimming them in.
 
 ### 7. Error handling is undifferentiated
 
 All client errors fall back identically. A production system would distinguish:
 
-- **Transient (timeout, 5xx, network)** → fall back, expected.
-- **Configuration (4xx)** → don't fall back, fail loud — it's a bug, not a transient issue.
-- **Authentication / authorization** → don't fall back, alert — it's a security signal.
+- **Transient (timeout, 5xx, network):** fall back, expected.
+- **Configuration (4xx):** don't fall back, fail loud. It's a bug, not a transient issue.
+- **Authentication / authorization:** don't fall back, alert. It's a security signal.
 
-Currently treated as "transient → fall back" everywhere. Conservative-correct, but loses signal.
+Currently treated as "transient, fall back" everywhere. Conservative-correct, but loses signal.
 
 ### 8. Strict mode on missing responses is asymmetric
 
@@ -355,6 +355,6 @@ A skipped or declined response makes every condition referencing it fail, includ
 
 ## Closing note
 
-The point of the architecture is not the elegance — it's the **reversibility**. Every choice that could plausibly need to change later (the static evaluator, the LLM behind it, the audit sink, the form versions) sits behind a typed interface. Nothing in the engine is married to anything else.
+The point of the architecture is not the elegance, it's the **reversibility**. Every choice that could plausibly need to change later (the static evaluator, the LLM behind it, the audit sink, the form versions) sits behind a typed interface. Nothing in the engine is married to anything else.
 
 If something here saves a half-hour of design debate, that's the goal.
